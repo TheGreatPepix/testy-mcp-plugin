@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}TestY · MCP{% endblock %}</title>
+  <script>
+    (function () {
+      var effectiveTheme;
+      try {
+        var root = JSON.parse(localStorage.getItem("persist:root") || "{}");
+        var theme = JSON.parse(root.theme || "{}");
+        effectiveTheme = theme.themeType === "system" ? theme.themeValue : theme.themeType;
+      } catch (error) {}
+      if (effectiveTheme !== "dark" && effectiveTheme !== "light") {
+        effectiveTheme = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches
+          ? "dark" : "light";
+      }
+      document.documentElement.setAttribute("data-theme", effectiveTheme);
+    })();
+  </script>
+  <style>
+    :root {
+      --bg:#fff; --surface:#f6f6f6; --text:#404040; --muted:#666;
+      --border:#dfdfdf; --accent:#425cd7; --accent-hover:#4e6bf3;
+      --success-bg:#eef7f2; --success:#287c50; --error-bg:#faeeef; --error:#c9454f;
+    }
+    html[data-theme="dark"] {
+      --bg:#262626; --surface:#1f1f1f; --text:#dfdfdf; --muted:#b8b8b8;
+      --border:#484848; --accent:#4e6bf3; --accent-hover:#637eff;
+      --success-bg:#2e4137; --success:#55c98d; --error-bg:#462e30; --error:#e06a72;
+    }
+    * { box-sizing:border-box; }
+    html, body { margin:0; padding:0; }
+    body {
+      background:var(--bg); color:var(--text); font:14px/1.5 Inter,system-ui,-apple-system,"Segoe UI",sans-serif;
+    }
+    .topbar {
+      display:flex; align-items:center; padding:11px 24px; background:var(--surface);
+      border-bottom:1px solid var(--border); position:sticky; top:0;
+    }
+    .brand { color:var(--text); font-weight:700; text-decoration:none; }
+    .brand:hover { color:var(--accent); }
+    main { max-width:980px; padding:24px 28px 48px; }
+    h1 { margin:0 0 6px; font-size:1.6rem; }
+    h2 { margin:30px 0 10px; font-size:1.15rem; }
+    h3 { margin:0 0 12px; font-size:1rem; }
+    p { margin:0 0 12px; }
+    a { color:var(--accent); }
+    code, .mono {
+      font-family:ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+    }
+    code { background:var(--surface); border:1px solid var(--border); padding:1px 5px; }
+    .lead, .hint { color:var(--muted); }
+    .hint { font-size:12px; }
+    .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:16px; margin-top:22px; }
+    .card { background:var(--surface); border:1px solid var(--border); border-radius:5px; padding:18px; }
+    .new-token { border-color:var(--accent); margin-top:20px; }
+    .field { display:flex; flex-direction:column; gap:5px; margin:14px 0; }
+    label { color:var(--muted); font-size:12px; font-weight:600; }
+    input {
+      width:100%; padding:8px 10px; color:var(--text); background:var(--bg);
+      border:1px solid var(--border); border-radius:3px;
+    }
+    .token-copy { display:flex; gap:8px; }
+    .token-copy input { flex:1; }
+    button {
+      padding:8px 13px; border:1px solid var(--border); border-radius:3px; cursor:pointer;
+      background:var(--surface); color:var(--text); font-weight:600;
+    }
+    button:hover { border-color:var(--accent); }
+    button.primary { color:#fff; background:var(--accent); border-color:var(--accent); }
+    button.primary:hover { background:var(--accent-hover); }
+    button.danger { color:var(--error); }
+    table { width:100%; border-collapse:collapse; }
+    th, td { padding:9px 10px; border:1px solid var(--border); text-align:left; }
+    th { background:var(--surface); }
+    form.inline { display:inline; }
+    .message { padding:10px 12px; margin:12px 0; border-left:3px solid var(--accent); background:var(--surface); }
+    .message.success { border-color:var(--success); background:var(--success-bg); }
+    .message.error { border-color:var(--error); background:var(--error-bg); }
+    .steps { margin:8px 0 0 20px; padding:0; }
+    .steps li { margin:7px 0; }
+    pre.code {
+      margin:10px 0; padding:10px 12px; overflow-x:auto; font-size:12px; line-height:1.5;
+      background:var(--bg); border:1px solid var(--border); border-radius:3px;
+    }
+    details.agent {
+      margin:8px 0; background:var(--surface); border:1px solid var(--border); border-radius:5px;
+    }
+    details.agent > summary { padding:10px 14px; cursor:pointer; font-weight:600; }
+    details.agent > summary::marker { color:var(--accent); }
+    details.agent > div { padding:0 14px 12px; }
+    details.agent[open] > summary { border-bottom:1px solid var(--border); }
+    @media (max-width:640px) {
+      main { padding:18px 14px 36px; }
+      .token-copy { flex-direction:column; }
+      .table-wrap { overflow-x:auto; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar"><a class="brand" href="/">‹ TestY</a></header>
+  <main>
+    {% for message in messages %}<div class="message {{ message.tags }}">{{ message }}</div>{% endfor %}
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

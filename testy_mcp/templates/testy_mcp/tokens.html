@@ -1,0 +1,259 @@
+{% extends "testy_mcp/base.html" %}
+{% block title %}TestY · MCP-токены{% endblock %}
+{% block content %}
+<h1>MCP Server</h1>
+<p class="lead">Персональные токены и инструкции по подключению AI-агентов к TestY.</p>
+
+{% if new_token %}
+  <section class="card new-token">
+    <h3>Новый токен — скопируйте его сейчас</h3>
+    <p class="hint">
+      Полное значение показывается только один раз.
+      {% if new_token_expires %}Срок действия: {{ new_token_expires }}.{% endif %}
+    </p>
+    <div class="token-copy">
+      <input id="new-token-value" class="mono" type="text" readonly value="{{ new_token }}" onfocus="this.select()">
+      <button id="copy-token-button" type="button" class="primary" onclick="copyToken()">Скопировать</button>
+    </div>
+  </section>
+  <script>
+    function copyToken() {
+      var input = document.getElementById("new-token-value");
+      var button = document.getElementById("copy-token-button");
+      var done = function () {
+        button.textContent = "Скопировано";
+        setTimeout(function () { button.textContent = "Скопировать"; }, 1600);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(input.value).then(done, function () {
+          input.select(); document.execCommand("copy"); done();
+        });
+      } else {
+        input.select(); document.execCommand("copy"); done();
+      }
+    }
+  </script>
+{% endif %}
+
+<div class="grid">
+  <section class="card">
+    <h3>Выпустить токен</h3>
+    <p class="hint">
+      Токен работает с правами текущего пользователя TestY и автоматически истекает согласно настройке
+      <code>AUTH_TOKEN_TTL</code>.
+    </p>
+    <form method="post" action="{% url 'plugins:testy_mcp:generate-token' %}">
+      {% csrf_token %}
+      <div class="field">
+        <label for="token-description">Название агента</label>
+        <input id="token-description" name="description" maxlength="200" placeholder="Например: Claude Code на рабочем ПК">
+      </div>
+      <button type="submit" class="primary">Выпустить MCP-токен</button>
+    </form>
+  </section>
+
+  <section class="card">
+    <h3>Что подставлять в конфиг</h3>
+    <p class="hint">Одинаково для всех клиентов ниже:</p>
+    <table>
+      <tbody>
+        <tr><th>Transport</th><td>Streamable HTTP (JSON)</td></tr>
+        <tr><th>URL</th><td><code>{{ mcp_endpoint }}</code></td></tr>
+        <tr>
+          <th>Заголовок</th>
+          <td><code>Authorization: Token &lt;ваш-токен&gt;</code></td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="hint">
+      Схема именно <code>Token</code>, а не <code>Bearer</code>. Не вставляйте токен в файлы,
+      которые попадают в git: используйте переменную окружения или секрет клиента.
+    </p>
+  </section>
+</div>
+
+<h2>Подключение в агентах</h2>
+<p class="hint">
+  Форматы сверены с документацией клиентов на октябрь 2026. Токен держите в переменной окружения
+  <code>TESTY_MCP_TOKEN</code>, а не в файлах репозитория. Клиент без поддержки HTTP-заголовков
+  подключается через мост <code>mcp-remote</code> в конце списка.
+</p>
+
+<details class="agent" open>
+  <summary>Claude Code</summary>
+  <div>
+<pre class="code">claude mcp add --transport http --scope project testy {{ mcp_endpoint }}   --header "Authorization: Token ${TESTY_MCP_TOKEN}"</pre>
+    <p class="hint">
+      Команда записывает в проектный <code>.mcp.json</code> такой JSON (его же без изменений понимают
+      многие другие клиенты). Поле <code>"type": "http"</code> обязательно:
+    </p>
+<pre class="code">{
+  "mcpServers": {
+    "testy": {
+      "type": "http",
+      "url": "{{ mcp_endpoint }}",
+      "headers": {
+        "Authorization": "Token ${TESTY_MCP_TOKEN}"
+      }
+    }
+  }
+}</pre>
+    <p class="hint">
+      Не используйте для токена переменные вида <code>ANTHROPIC_*</code> или <code>NPM_TOKEN</code>:
+      в заголовках удалённых серверов Claude Code подставляет их пустыми.
+    </p>
+  </div>
+</details>
+
+<details class="agent">
+  <summary>Claude Desktop</summary>
+  <div>
+    <p class="hint">
+      <b>Settings → Connectors → Add custom connector</b>: URL <code>{{ mcp_endpoint }}</code>, в «Request headers»
+      заголовок <code>Authorization: Token &lt;ваш-токен&gt;</code>. Коннектор ходит в TestY из облака Anthropic,
+      поэтому сервер должен быть доступен из интернета. Если TestY во внутренней сети, подключите его через
+      <code>mcp-remote</code> (см. ниже) в <code>claude_desktop_config.json</code>.
+    </p>
+  </div>
+</details>
+
+<details class="agent">
+  <summary>OpenAI Codex (CLI и IDE)</summary>
+  <div>
+    <p class="hint">
+      В <code>~/.codex/config.toml</code>. Переменная <code>TESTY_MCP_AUTH</code> содержит заголовок целиком:
+      <code>Token &lt;ваш-токен&gt;</code>. Флаг <code>--bearer-token-env-var</code> не подходит: он отправляет
+      схему <code>Bearer</code>.
+    </p>
+<pre class="code">[mcp_servers.testy]
+url = "{{ mcp_endpoint }}"
+env_http_headers = { "Authorization" = "TESTY_MCP_AUTH" }</pre>
+  </div>
+</details>
+
+<details class="agent">
+  <summary>Cursor</summary>
+  <div>
+    <p class="hint">Глобальный <code>~/.cursor/mcp.json</code> (или проектный <code>.cursor/mcp.json</code>, если он в <code>.gitignore</code>):</p>
+<pre class="code">{
+  "mcpServers": {
+    "testy": {
+      "url": "{{ mcp_endpoint }}",
+      "headers": {
+        "Authorization": "Token ${env:TESTY_MCP_TOKEN}"
+      }
+    }
+  }
+}</pre>
+    <p class="hint">Переменная должна быть задана в окружении, из которого запущен Cursor.</p>
+  </div>
+</details>
+
+<details class="agent">
+  <summary>VS Code (GitHub Copilot)</summary>
+  <div>
+    <p class="hint">Файл <code>.vscode/mcp.json</code>. Токен VS Code спросит один раз и сохранит в защищённом хранилище.</p>
+<pre class="code">{
+  "servers": {
+    "testy": {
+      "type": "http",
+      "url": "{{ mcp_endpoint }}",
+      "headers": {
+        "Authorization": "Token ${input:testy-token}"
+      }
+    }
+  },
+  "inputs": [
+    {
+      "type": "promptString",
+      "id": "testy-token",
+      "description": "TestY MCP token",
+      "password": true
+    }
+  ]
+}</pre>
+  </div>
+</details>
+
+<details class="agent">
+  <summary>Gemini CLI</summary>
+  <div>
+<pre class="code">gemini mcp add --transport http --header "Authorization: Token &lt;ваш-токен&gt;" testy {{ mcp_endpoint }}</pre>
+    <p class="hint">Или вручную в <code>settings.json</code>; для Streamable HTTP нужно поле <code>httpUrl</code>, а не <code>url</code>:</p>
+<pre class="code">{
+  "mcpServers": {
+    "testy": {
+      "httpUrl": "{{ mcp_endpoint }}",
+      "headers": {
+        "Authorization": "Token &lt;ваш-токен&gt;"
+      }
+    }
+  }
+}</pre>
+  </div>
+</details>
+
+<details class="agent">
+  <summary>Другие клиенты: мост mcp-remote</summary>
+  <div>
+    <p class="hint">
+      Для клиентов, которые умеют только локальные stdio-серверы или не передают заголовки. Нужен Node.js.
+      Двоеточие в <code>Authorization:${...}</code> без пробела — так аргумент не разрывается на Windows.
+    </p>
+<pre class="code">{
+  "mcpServers": {
+    "testy": {
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "{{ mcp_endpoint }}",
+        "--header",
+        "Authorization:${TESTY_MCP_AUTH_HEADER}"
+      ],
+      "env": {
+        "TESTY_MCP_AUTH_HEADER": "Token &lt;ваш-токен&gt;"
+      }
+    }
+  }
+}</pre>
+  </div>
+</details>
+
+<h2>Как агент работает с TestY</h2>
+<p class="hint">
+  Объяснять агенту ничего не нужно. Правила работы сервер передаёт сам: в инструкциях MCP и в описаниях
+  инструментов. Там сказано, как сначала находить проект и набор по имени, запрашивать только нужные поля,
+  создавать кейсы сразу со шагами, не перечитывать кейс после записи и ничего не удалять без вашего
+  явного подтверждения. Достаточно сформулировать задачу, например:
+  «В проекте TestY MCP добавь в набор „Установка плагина“ кейс на обновление плагина».
+</p>
+
+<h2>Ваши MCP-токены</h2>
+{% if tokens %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Токен</th><th>Название</th><th>Создан</th><th>Истекает</th><th></th></tr></thead>
+      <tbody>
+      {% for token in tokens %}
+        <tr>
+          <td><code>{{ token.key_prefix }}…</code></td>
+          <td>{{ token.label|default:"—" }}</td>
+          <td>{{ token.created|date:"Y-m-d H:i" }}</td>
+          <td>{{ token.expiration_date|date:"Y-m-d H:i" }}</td>
+          <td>
+            <form class="inline" method="post" action="{% url 'plugins:testy_mcp:revoke-token' %}"
+                  onsubmit="return confirm('Отозвать этот MCP-токен?');">
+              {% csrf_token %}
+              <input type="hidden" name="key" value="{{ token.key }}">
+              <button type="submit" class="danger">Отозвать</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% else %}
+  <p class="hint">MCP-токенов пока нет.</p>
+{% endif %}
+{% endblock %}

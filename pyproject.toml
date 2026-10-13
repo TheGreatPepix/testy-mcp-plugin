@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "testy-mcp-plugin"
+version = "1.0.0"
+description = "MCP server plugin for TestY TMS"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "AGPL-3.0-or-later"
+authors = [{ name = "Igor Safronov" }]
+keywords = ["testy", "tms", "mcp", "model-context-protocol", "test-management"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Framework :: Django :: 4.2",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Software Development :: Testing",
+]
+
+[project.optional-dependencies]
+dev = [
+    "django==4.2.13",
+    "djangorestframework==3.15.1",
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+]
+
+[project.entry-points.testy]
+testy-mcp-plugin = "testy_mcp"
+
+[tool.setuptools.packages.find]
+include = ["testy_mcp*"]
+
+[tool.setuptools.package-data]
+testy_mcp = ["templates/**/*.html"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.coverage.run]
+source = ["testy_mcp"]
