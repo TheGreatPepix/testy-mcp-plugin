@@ -47,20 +47,6 @@ def test_update_defaults_to_patch():
     )
 
 
-def test_delete_returns_confirmation_for_empty_response():
-    gateway = FakeGateway(Response(status=204, data=None))
-
-    result = call_tool(
-        "testy_delete", {"entity": "test_plans", "id": 3, "confirmed": True}, gateway
-    )
-
-    assert result["structuredContent"] == {
-        "deleted": True,
-        "entity": "test_plans",
-        "id": 3,
-    }
-
-
 def test_read_only_entity_cannot_be_changed():
     with pytest.raises(ToolError, match="read-only"):
         call_tool(
@@ -595,15 +581,116 @@ def test_failed_marking_is_reported_without_inviting_a_retry():
         )
 
 
-def test_delete_requires_the_confirmed_argument():
-    gateway = FakeGateway()
+CASE_3 = ("GET", "/api/v2/cases/3/")
+PROJECT_6 = ("GET", "/api/v2/projects/6/")
 
-    with pytest.raises(ToolError, match="Missing required argument: confirmed"):
-        call_tool("testy_delete", {"entity": "cases", "id": 3}, gateway)
-    with pytest.raises(ToolError, match="explicit confirmation"):
-        call_tool("testy_delete", {"entity": "cases", "id": 3, "confirmed": False}, gateway)
 
-    assert gateway.calls == []
+def deletion_gateway(routes=None):
+    return FakeGateway(
+        Response(status=204, data=None),
+        routes={
+            CASE_3: Response(
+                data={"id": 3, "name": "Вход  по паролю", "project": 6, "labels": []}
+            ),
+            PROJECT_6: Response(data={"id": 6, "name": "STUDY"}),
+            **(routes or {}),
+        },
+    )
+
+
+def writes(gateway):
+    return [call[:2] for call in gateway.calls if call[0] != "GET"]
+
+
+def test_delete_without_confirmation_archives_and_names_the_phrase():
+    gateway = deletion_gateway()
+
+    result = call_tool("testy_delete", {"entity": "cases", "id": 3}, gateway)
+
+    assert writes(gateway)[0] == ("POST", "/api/v2/cases/3/archive/")
+    assert ("DELETE", "/api/v2/cases/3/") not in writes(gateway)
+    content = result["structuredContent"]
+    assert content["archived"] is True and content["deleted"] is False
+    assert content["name"] == "Вход по паролю" and content["project"] == "STUDY"
+    assert "Да, удали Вход по паролю в проекте STUDY" in content["note"]
+
+
+def test_delete_with_the_exact_phrase_deletes():
+    gateway = deletion_gateway()
+
+    result = call_tool(
+        "testy_delete",
+        {
+            "entity": "cases",
+            "id": 3,
+            "confirmation": " «Да, удали Вход по  паролю в проекте STUDY» ",
+        },
+        gateway,
+    )
+
+    assert writes(gateway) == [("DELETE", "/api/v2/cases/3/")]
+    assert result["structuredContent"] == {
+        "deleted": True,
+        "entity": "cases",
+        "id": 3,
+        "name": "Вход по паролю",
+        "project": "STUDY",
+    }
+
+
+@pytest.mark.parametrize(
+    "confirmation",
+    [
+        "Да",
+        "Да, удали",
+        "да, удали Вход по паролю в проекте STUDY",
+        "Да, удали Вход по паролю в проекте Alertix",
+        "Да, удали Другой кейс в проекте STUDY",
+        "Да, удали Вход по паролю в проекте STUDY и всё остальное",
+    ],
+)
+def test_delete_with_a_wrong_phrase_changes_nothing(confirmation):
+    gateway = deletion_gateway()
+
+    expected = "does not match.*Да, удали Вход по паролю в проекте STUDY"
+    with pytest.raises(ToolError, match=expected):
+        call_tool(
+            "testy_delete", {"entity": "cases", "id": 3, "confirmation": confirmation}, gateway
+        )
+    assert writes(gateway) == []
+
+
+def test_project_phrase_names_the_project_itself():
+    gateway = deletion_gateway()
+
+    with pytest.raises(ToolError, match="Да, удали проект STUDY"):
+        call_tool(
+            "testy_delete",
+            {"entity": "projects", "id": 6, "confirmation": "Да, удали STUDY в проекте STUDY"},
+            gateway,
+        )
+    call_tool(
+        "testy_delete",
+        {"entity": "projects", "id": 6, "confirmation": "Да, удали проект STUDY"},
+        gateway,
+    )
+    assert writes(gateway) == [("DELETE", "/api/v2/projects/6/")]
+
+
+def test_entities_without_archive_need_the_phrase():
+    suite = Response(data={"id": 9, "name": "Логин", "project": {"id": 6, "name": "STUDY"}})
+    gateway = deletion_gateway({("GET", "/api/v2/suites/9/"): suite})
+
+    with pytest.raises(ToolError, match="cannot be archived.*Да, удали Логин в проекте STUDY"):
+        call_tool("testy_delete", {"entity": "suites", "id": 9}, gateway)
+    assert writes(gateway) == []
+
+
+def test_delete_no_longer_accepts_a_boolean_confirmation():
+    with pytest.raises(ToolError, match="Unknown argument: confirmed"):
+        call_tool(
+            "testy_delete", {"entity": "cases", "id": 3, "confirmed": True}, deletion_gateway()
+        )
 
 
 @pytest.mark.parametrize(
@@ -621,12 +708,9 @@ def test_delete_requires_the_confirmed_argument():
         ),
     ],
 )
-def test_other_delete_routes_require_confirmation(tool, arguments):
+def test_other_delete_routes_are_refused(tool, arguments):
     gateway = FakeGateway()
 
-    with pytest.raises(ToolError, match="explicit confirmation"):
+    with pytest.raises(ToolError, match="must be one of|Use testy_delete"):
         call_tool(tool, arguments, gateway)
     assert gateway.calls == []
-
-    call_tool(tool, {**arguments, "confirmed": True}, gateway)
-    assert gateway.calls

@@ -295,10 +295,12 @@ class MCPProtocol:
             "'steps': [['action', 'expected'], ...]}. "
             + label_rule
             + "On an error, details.data carries TestY's validation messages per field: fix the "
-            "request instead of guessing. STRICT RULE: never delete anything without the user's "
-            "explicit confirmation in this conversation; name exactly what will be deleted, wait "
-            "for a clear yes, and only then pass confirmed=true. Confirm bulk changes with the "
-            "user too. "
+            "request instead of guessing. When the user asks to delete something, call testy_delete "
+            "without confirmation: it archives projects, cases, test plans and tests. STRICT RULE: "
+            "permanent deletion happens only when the user has typed, themselves, exactly 'Да, "
+            "удали <name> в проекте <project>' ('Да, удали проект <name>' for a project); pass "
+            "their message verbatim as confirmation. Never write or complete the phrase for them. "
+            "Confirm bulk changes with the user too. "
             "Use testy_api_request only for API v2 routes the typed tools do not cover."
         )
 

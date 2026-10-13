@@ -65,7 +65,8 @@ def test_instructions_announce_ai_labels_and_the_delete_rule():
     instructions = response["result"]["instructions"]
     for label in ("'AI-generated'", "'AI-edited'", "'AI-copy'"):
         assert label in instructions
-    assert "never delete anything without the user's explicit confirmation" in instructions
+    assert "permanent deletion happens only when the user has typed" in instructions
+    assert "'Да, удали <name> в проекте <project>'" in instructions
 
 
 def test_initialize_falls_back_to_latest_version():
@@ -149,9 +150,8 @@ def test_tool_definitions_carry_usage_rules_without_repeating_them():
     assert "page_size defaults to 25" in tools["testy_list"]["description"]
     for name in ("testy_create", "testy_update"):
         assert "do not re-read" in tools[name]["description"], name
-    assert "never delete without the user's explicit confirmation" in (
-        tools["testy_delete"]["description"]
-    )
+    assert "Without confirmation it ARCHIVES the object" in tools["testy_delete"]["description"]
+    assert tools["testy_delete"]["inputSchema"]["required"] == ["entity", "id"]
     assert payload.count("Test design: projects") == 1
     assert payload.count("Lists are projected element-wise") == 1
     assert payload.count("labels_condition") == 1

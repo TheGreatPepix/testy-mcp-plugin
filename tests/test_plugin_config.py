@@ -9,7 +9,7 @@ def test_plugin_catalog_links_to_token_management_page():
     plugin_config = testy_mcp.config()
 
     assert plugin_config.index_reverse_name == "tokens"
-    assert plugin_config.version == "1.0.0"
+    assert plugin_config.version == "1.0.1"
 
 
 def test_token_page_documents_agent_connections():

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "testy-mcp-plugin"
-version = "1.0.0"
+version = "1.0.1"
 description = "MCP server plugin for TestY TMS"
 readme = "README.md"
 requires-python = ">=3.11"
